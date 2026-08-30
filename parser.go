@@ -227,7 +227,7 @@ func litPart(p syntax.WordPart) (string, bool) {
 func hasOutputRedirect(redirs []*syntax.Redirect) bool {
 	for _, r := range redirs {
 		switch r.Op {
-		case syntax.RdrOut, syntax.AppOut, syntax.RdrAll, syntax.AppAll, syntax.ClbOut, syntax.RdrInOut:
+		case syntax.RdrOut, syntax.AppOut, syntax.RdrAll, syntax.AppAll, syntax.RdrClob, syntax.RdrInOut:
 			return true
 		case syntax.DplOut:
 			// >&N and >&- only manipulate fds; anything else behaves
