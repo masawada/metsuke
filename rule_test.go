@@ -16,6 +16,8 @@ allow = [
   "git status",
   "git log",
   "git commit -m 'foo bar'",
+  "git commit -m ''",
+  "git show HEAD:path/to/file",
 ]
 `))
 	if err != nil {
@@ -32,6 +34,12 @@ allow = [
 	if want := []string{"git", "commit", "-m", "foo bar"}; !reflect.DeepEqual(cfg.allowRules[2], want) {
 		t.Errorf("quoted rule tokens = %v, want %v", cfg.allowRules[2], want)
 	}
+	if want := []string{"git", "commit", "-m", ""}; !reflect.DeepEqual(cfg.allowRules[3], want) {
+		t.Errorf("empty argument rule tokens = %v, want %v", cfg.allowRules[3], want)
+	}
+	if want := []string{"git", "show", "HEAD:path/to/file"}; !reflect.DeepEqual(cfg.allowRules[4], want) {
+		t.Errorf("slash argument rule tokens = %v, want %v", cfg.allowRules[4], want)
+	}
 }
 
 func TestParseConfigInvalidRules(t *testing.T) {
@@ -41,6 +49,8 @@ func TestParseConfigInvalidRules(t *testing.T) {
 	}{
 		{"pipe in rule", `deny = ["git push | cat"]`},
 		{"and chain in rule", `deny = ["git add . && git push"]`},
+		{"semicolon-separated commands in rule", `deny = ["git status; git push"]`},
+		{"newline-separated commands in rule", `deny = ["git status\ngit push"]`},
 		{"expansion in rule", `deny = ["git push $BRANCH"]`},
 		{"command substitution in rule", `deny = ["git push $(cat f)"]`},
 		{"redirect in rule", `allow = ["git status > out.txt"]`},
