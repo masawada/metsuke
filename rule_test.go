@@ -154,7 +154,7 @@ allow = ["git status", "git log"]
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := cfg.judgeCommand(tt.cmd); got != tt.want {
+			if got, _ := cfg.judgeCommand(tt.cmd); got != tt.want {
 				t.Errorf("judgeCommand(%+v) = %v, want %v", tt.cmd, got, tt.want)
 			}
 		})

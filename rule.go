@@ -108,40 +108,41 @@ func parseRule(s string) ([]string, error) {
 	return rule, nil
 }
 
-// judgeCommand judges one simple command against the rules.
+// judgeCommand judges one simple command against the rules. The returned
+// rule is the matched deny/allow rule, if any.
 //
 // Deny matching compares the basename of argv[0] so that /usr/bin/git is
 // still caught. Allow matching requires a bare command name so that a local
 // binary like ./git cannot impersonate an allowed command.
-func (c *Config) judgeCommand(cmd Command) cmdVerdict {
+func (c *Config) judgeCommand(cmd Command) (cmdVerdict, []string) {
 	if len(cmd.Words) == 0 || !cmd.Words[0].Literal {
-		return verdictUnwatched
+		return verdictUnwatched, nil
 	}
 	name := filepath.Base(cmd.Words[0].Text)
 	for _, rule := range c.denyRules {
 		if rule[0] == name && prefixMatch(rule[1:], cmd.Words[1:]) {
-			return verdictDeny
+			return verdictDeny, rule
 		}
 	}
 	if !c.watched[name] {
-		return verdictUnwatched
+		return verdictUnwatched, nil
 	}
 	if cmd.OutputRedirect || cmd.EnvPrefix {
-		return verdictAbstain
+		return verdictAbstain, nil
 	}
 	for _, w := range cmd.Words {
 		if !w.Literal {
-			return verdictNoMatch
+			return verdictNoMatch, nil
 		}
 	}
 	if !strings.Contains(cmd.Words[0].Text, "/") {
 		for _, rule := range c.allowRules {
 			if rule[0] == cmd.Words[0].Text && prefixMatch(rule[1:], cmd.Words[1:]) {
-				return verdictAllow
+				return verdictAllow, rule
 			}
 		}
 	}
-	return verdictNoMatch
+	return verdictNoMatch, nil
 }
 
 // prefixMatch reports whether every rule token equals the corresponding

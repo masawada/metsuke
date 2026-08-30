@@ -46,8 +46,12 @@ allow = ["git status", "git log"]
 			if err != nil {
 				t.Fatalf("parseCommands(%q) error: %v", tt.src, err)
 			}
-			if got := cfg.judge(cmds); got != tt.want {
+			got, reason := cfg.judge(cmds)
+			if got != tt.want {
 				t.Errorf("judge(%q) = %v, want %v", tt.src, got, tt.want)
+			}
+			if (got == decisionDeny || got == decisionAsk || got == decisionAllow) && reason == "" {
+				t.Errorf("judge(%q) returned empty reason for %v", tt.src, got)
 			}
 		})
 	}

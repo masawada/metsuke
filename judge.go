@@ -1,5 +1,10 @@
 package main
 
+import (
+	"fmt"
+	"strings"
+)
+
 // decision is the aggregate permission decision for a whole command line.
 type decision int
 
@@ -32,25 +37,42 @@ func (d decision) String() string {
 //  3. allow only when every command is watched and allowed
 //  4. anything else delegates, so an allow from metsuke never lets
 //     unwatched commands skip the classifier
-func (c *Config) judge(cmds []Command) decision {
+func (c *Config) judge(cmds []Command) (decision, string) {
 	allAllowed := len(cmds) > 0
-	sawAsk := false
+	askReason := ""
 	for _, cmd := range cmds {
-		switch c.judgeCommand(cmd) {
+		verdict, rule := c.judgeCommand(cmd)
+		switch verdict {
 		case verdictDeny:
-			return decisionDeny
+			return decisionDeny, fmt.Sprintf("%q matches deny rule %q", cmdText(cmd), strings.Join(rule, " "))
 		case verdictNoMatch:
-			sawAsk = true
+			if askReason == "" {
+				askReason = fmt.Sprintf("no rule matches watched command %q", cmdText(cmd))
+			}
 		case verdictAllow:
 		default:
 			allAllowed = false
 		}
 	}
-	if sawAsk {
-		return decisionAsk
+	if askReason != "" {
+		return decisionAsk, askReason
 	}
 	if allAllowed {
-		return decisionAllow
+		return decisionAllow, "all commands match allow rules"
 	}
-	return decisionDelegate
+	return decisionDelegate, ""
+}
+
+// cmdText renders a command for use in decision reasons. Words whose value
+// is not known until runtime are shown as "?".
+func cmdText(cmd Command) string {
+	parts := make([]string, len(cmd.Words))
+	for i, w := range cmd.Words {
+		if w.Literal {
+			parts[i] = w.Text
+		} else {
+			parts[i] = "?"
+		}
+	}
+	return strings.Join(parts, " ")
 }
