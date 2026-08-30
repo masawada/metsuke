@@ -24,17 +24,12 @@ type cmdVerdict int
 const (
 	// verdictDeny: a deny rule matched.
 	verdictDeny cmdVerdict = iota
-	// verdictAllow: the command is watched and an allow rule matched.
-	verdictAllow
-	// verdictNoMatch: the command is watched but no rule matched; the
-	// aggregate decision becomes ask.
-	verdictNoMatch
-	// verdictAbstain: the command is watched and would otherwise be
-	// allowable, but carries an output redirect or env assignment prefix,
-	// so no allow is granted and the normal permission flow decides.
-	verdictAbstain
-	// verdictUnwatched: no rules are defined for this command.
-	verdictUnwatched
+	// verdictAsk: the command is watched but no allow rule matched.
+	verdictAsk
+	// verdictSkip: the command contributes nothing to the aggregate
+	// decision (unwatched, or watched with a matching allow rule; either
+	// way the normal permission flow decides).
+	verdictSkip
 )
 
 func loadConfig(path string) (*Config, error) {
@@ -50,8 +45,13 @@ func parseConfig(data []byte) (*Config, error) {
 		Deny  []string `toml:"deny"`
 		Allow []string `toml:"allow"`
 	}
-	if err := toml.Unmarshal(data, &raw); err != nil {
+	md, err := toml.Decode(string(data), &raw)
+	if err != nil {
 		return nil, err
+	}
+	// A typo like `denny = [...]` must not silently disable the rules.
+	if undecoded := md.Undecoded(); len(undecoded) > 0 {
+		return nil, fmt.Errorf("unknown key %q", undecoded[0].String())
 	}
 	cfg := &Config{watched: map[string]bool{}}
 	for _, s := range raw.Deny {
@@ -109,14 +109,17 @@ func parseRule(s string) ([]string, error) {
 }
 
 // judgeCommand judges one simple command against the rules. The returned
-// rule is the matched deny/allow rule, if any.
+// rule is the matched deny rule, if any.
 //
 // Deny matching compares the basename of argv[0] so that /usr/bin/git is
 // still caught. Allow matching requires a bare command name so that a local
-// binary like ./git cannot impersonate an allowed command.
+// binary like ./git cannot impersonate an allowed command. Redirects and
+// env assignment prefixes do not affect the verdict: metsuke never emits
+// an allow decision, so an allow-rule match only means "do not ask" and
+// the normal permission flow still sees the whole command line.
 func (c *Config) judgeCommand(cmd Command) (cmdVerdict, []string) {
 	if len(cmd.Words) == 0 || !cmd.Words[0].Literal {
-		return verdictUnwatched, nil
+		return verdictSkip, nil
 	}
 	name := filepath.Base(cmd.Words[0].Text)
 	for _, rule := range c.denyRules {
@@ -125,24 +128,16 @@ func (c *Config) judgeCommand(cmd Command) (cmdVerdict, []string) {
 		}
 	}
 	if !c.watched[name] {
-		return verdictUnwatched, nil
-	}
-	if cmd.OutputRedirect || cmd.EnvPrefix {
-		return verdictAbstain, nil
-	}
-	for _, w := range cmd.Words {
-		if !w.Literal {
-			return verdictNoMatch, nil
-		}
+		return verdictSkip, nil
 	}
 	if !strings.Contains(cmd.Words[0].Text, "/") {
 		for _, rule := range c.allowRules {
 			if rule[0] == cmd.Words[0].Text && prefixMatch(rule[1:], cmd.Words[1:]) {
-				return verdictAllow, rule
+				return verdictSkip, nil
 			}
 		}
 	}
-	return verdictNoMatch, nil
+	return verdictAsk, nil
 }
 
 // prefixMatch reports whether every rule token equals the corresponding

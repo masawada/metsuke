@@ -67,7 +67,6 @@ func TestRunDecisions(t *testing.T) {
 		wantInReason string
 	}{
 		{"deny", "git push origin main", "deny", "deny rule"},
-		{"allow", "git status", "allow", "allow"},
 		{"ask", "git stash pop", "ask", "git stash pop"},
 	}
 	for _, tt := range tests {
@@ -90,6 +89,7 @@ func TestRunDelegates(t *testing.T) {
 		name  string
 		stdin string
 	}{
+		{"allow-rule match delegates", hookInputJSON("Bash", "git status")},
 		{"unwatched command", hookInputJSON("Bash", "curl example.com")},
 		{"mixture", hookInputJSON("Bash", "git log | head -5")},
 		{"unparseable command", hookInputJSON("Bash", "git status &&")},
@@ -108,12 +108,14 @@ func TestRunDelegates(t *testing.T) {
 
 func TestRunConfigErrorsAsk(t *testing.T) {
 	brokenPath := writeTestConfig(t, `deny = ["git push | cat"]`)
+	typoPath := writeTestConfig(t, `denny = ["git push"]`)
 	tests := []struct {
 		name string
 		args []string
 	}{
 		{"missing config", []string{"--config", filepath.Join(t.TempDir(), "nope.toml")}},
 		{"broken config", []string{"--config", brokenPath}},
+		{"unknown key config", []string{"--config", typoPath}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -131,10 +133,21 @@ func TestRunConfigErrorsAsk(t *testing.T) {
 
 func TestRunInvalidStdinAsks(t *testing.T) {
 	cfgPath := writeTestConfig(t, testConfig)
-	stdout, _ := runHook(t, "not json", "--config", cfgPath)
-	decision, _ := decodeDecision(t, stdout)
-	if decision != "ask" {
-		t.Errorf("decision = %q, want ask", decision)
+	tests := []struct {
+		name  string
+		stdin string
+	}{
+		{"not json", "not json"},
+		{"trailing garbage", hookInputJSON("Bash", "git status") + " garbage"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, _ := runHook(t, tt.stdin, "--config", cfgPath)
+			decision, _ := decodeDecision(t, stdout)
+			if decision != "ask" {
+				t.Errorf("decision = %q, want ask", decision)
+			}
+		})
 	}
 }
 

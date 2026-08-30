@@ -48,6 +48,7 @@ func TestParseConfigInvalidRules(t *testing.T) {
 		{"empty rule", `deny = [""]`},
 		{"path command name in rule", `deny = ["/usr/bin/git push"]`},
 		{"broken toml", `deny = [`},
+		{"unknown key", `denny = ["git push"]`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -102,54 +103,64 @@ allow = ["git status", "git log"]
 			want: verdictDeny,
 		},
 		{
-			name: "allow exact",
+			name: "allow match skips",
 			cmd:  Command{Words: argv(lit("git"), lit("status"))},
-			want: verdictAllow,
+			want: verdictSkip,
 		},
 		{
-			name: "allow prefix with trailing args",
+			name: "allow prefix with trailing args skips",
 			cmd:  Command{Words: argv(lit("git"), lit("log"), lit("--oneline"), lit("-5"))},
-			want: verdictAllow,
+			want: verdictSkip,
+		},
+		{
+			name: "allow prefix with uncertain trailing word skips",
+			cmd:  Command{Words: argv(lit("git"), lit("log"), unc())},
+			want: verdictSkip,
+		},
+		{
+			name: "allow match with output redirect still skips",
+			cmd:  Command{Words: argv(lit("git"), lit("status")), OutputRedirect: true},
+			want: verdictSkip,
+		},
+		{
+			name: "allow match with env prefix still skips",
+			cmd:  Command{Words: argv(lit("git"), lit("status")), EnvPrefix: true},
+			want: verdictSkip,
 		},
 		{
 			name: "allow requires bare command name",
 			cmd:  Command{Words: argv(lit("./git"), lit("status"))},
-			want: verdictNoMatch,
+			want: verdictAsk,
 		},
 		{
-			name: "watched without matching rule",
+			name: "watched without matching rule asks",
 			cmd:  Command{Words: argv(lit("git"), lit("stash"), lit("pop"))},
-			want: verdictNoMatch,
+			want: verdictAsk,
 		},
 		{
-			name: "watched with uncertain word gets no allow",
-			cmd:  Command{Words: argv(lit("git"), lit("log"), unc())},
-			want: verdictNoMatch,
+			name: "watched no-match asks even with output redirect",
+			cmd:  Command{Words: argv(lit("git"), lit("reset"), lit("--hard")), OutputRedirect: true},
+			want: verdictAsk,
 		},
 		{
-			name: "watched with output redirect abstains",
-			cmd:  Command{Words: argv(lit("git"), lit("status")), OutputRedirect: true},
-			want: verdictAbstain,
+			name: "watched no-match asks even with env prefix",
+			cmd:  Command{Words: argv(lit("git"), lit("reset"), lit("--hard")), EnvPrefix: true},
+			want: verdictAsk,
 		},
 		{
-			name: "watched with env prefix abstains",
-			cmd:  Command{Words: argv(lit("git"), lit("status")), EnvPrefix: true},
-			want: verdictAbstain,
-		},
-		{
-			name: "unwatched command",
+			name: "unwatched command skips",
 			cmd:  Command{Words: argv(lit("curl"), lit("example.com"))},
-			want: verdictUnwatched,
+			want: verdictSkip,
 		},
 		{
-			name: "empty argv (bare assignment)",
+			name: "empty argv (bare assignment) skips",
 			cmd:  Command{EnvPrefix: true},
-			want: verdictUnwatched,
+			want: verdictSkip,
 		},
 		{
-			name: "uncertain command name",
+			name: "uncertain command name skips",
 			cmd:  Command{Words: argv(unc(), lit("push"))},
-			want: verdictUnwatched,
+			want: verdictSkip,
 		},
 	}
 	for _, tt := range tests {

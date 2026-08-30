@@ -169,6 +169,30 @@ func TestParseCommands(t *testing.T) {
 				{Words: argv(lit("git"), lit("status")), OutputRedirect: true},
 			},
 		},
+		{
+			name: "c-style loop header substitutions are extracted",
+			src:  "for ((i=$(git push); i<3; i++)); do echo x; done",
+			want: []Command{
+				{Words: argv(lit("git"), lit("push"))},
+				{Words: argv(lit("echo"), lit("x"))},
+			},
+		},
+		{
+			name: "case pattern substitutions are extracted",
+			src:  "case x in $(git push)) echo y;; esac",
+			want: []Command{
+				{Words: argv(lit("git"), lit("push"))},
+				{Words: argv(lit("echo"), lit("y"))},
+			},
+		},
+		{
+			name: "array subscript substitutions are extracted",
+			src:  "a[$(git push)]=x",
+			want: []Command{
+				{EnvPrefix: true},
+				{Words: argv(lit("git"), lit("push"))},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

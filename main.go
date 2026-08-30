@@ -44,8 +44,15 @@ func run(stdin io.Reader, stdout, stderr io.Writer, args []string) int {
 		return 0
 	}
 
+	// Unmarshal over the whole body (rather than a streaming decode) so a
+	// payload with trailing garbage is rejected instead of half-processed.
+	body, err := io.ReadAll(stdin)
+	if err != nil {
+		emit(stdout, decisionAsk, fmt.Sprintf("failed to read hook input: %v", err))
+		return 0
+	}
 	var in hookInput
-	if err := json.NewDecoder(stdin).Decode(&in); err != nil {
+	if err := json.Unmarshal(body, &in); err != nil {
 		emit(stdout, decisionAsk, fmt.Sprintf("failed to decode hook input: %v", err))
 		return 0
 	}

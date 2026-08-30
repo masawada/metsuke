@@ -49,12 +49,8 @@ func visitStmt(cmds []Command, stmt *syntax.Stmt, redirected bool) []Command {
 	// Substitutions buried in redirect targets still run; extract them so
 	// deny rules can see them.
 	for _, r := range stmt.Redirs {
-		if r.Word != nil {
-			cmds = visitWordSubsts(cmds, r.Word)
-		}
-		if r.Hdoc != nil {
-			cmds = visitWordSubsts(cmds, r.Hdoc)
-		}
+		cmds = visitSubsts(cmds, r.Word)
+		cmds = visitSubsts(cmds, r.Hdoc)
 	}
 	return cmds
 }
@@ -72,17 +68,16 @@ func visitCommand(cmds []Command, cmd syntax.Command, redirected bool) []Command
 			EnvPrefix:      len(c.Assigns) > 0,
 		})
 		for _, w := range c.Args {
-			cmds = visitWordSubsts(cmds, w)
+			cmds = visitSubsts(cmds, w)
 		}
 		for _, a := range c.Assigns {
-			if a.Value != nil {
-				cmds = visitWordSubsts(cmds, a.Value)
-			}
+			cmds = visitSubsts(cmds, a.Value)
+			// Array subscripts like a[$(cmd)]=x execute substitutions.
+			cmds = visitSubsts(cmds, a.Index)
 			if a.Array != nil {
 				for _, el := range a.Array.Elems {
-					if el.Value != nil {
-						cmds = visitWordSubsts(cmds, el.Value)
-					}
+					cmds = visitSubsts(cmds, el.Value)
+					cmds = visitSubsts(cmds, el.Index)
 				}
 			}
 		}
@@ -105,15 +100,25 @@ func visitCommand(cmds []Command, cmd syntax.Command, redirected bool) []Command
 		cmds = visitStmts(cmds, c.Cond, redirected)
 		return visitStmts(cmds, c.Do, redirected)
 	case *syntax.ForClause:
-		if wi, ok := c.Loop.(*syntax.WordIter); ok {
-			for _, w := range wi.Items {
-				cmds = visitWordSubsts(cmds, w)
+		switch loop := c.Loop.(type) {
+		case *syntax.WordIter:
+			for _, w := range loop.Items {
+				cmds = visitSubsts(cmds, w)
 			}
+		case *syntax.CStyleLoop:
+			// for ((i=$(cmd); ...)) executes substitutions in its header.
+			cmds = visitSubsts(cmds, loop.Init)
+			cmds = visitSubsts(cmds, loop.Cond)
+			cmds = visitSubsts(cmds, loop.Post)
 		}
 		return visitStmts(cmds, c.Do, redirected)
 	case *syntax.CaseClause:
-		cmds = visitWordSubsts(cmds, c.Word)
+		cmds = visitSubsts(cmds, c.Word)
 		for _, item := range c.Items {
+			// Bash expands substitutions in case patterns.
+			for _, pat := range item.Patterns {
+				cmds = visitSubsts(cmds, pat)
+			}
 			cmds = visitStmts(cmds, item.Stmts, redirected)
 		}
 		return cmds
@@ -149,11 +154,17 @@ func visitCommand(cmds []Command, cmd syntax.Command, redirected bool) []Command
 	}
 }
 
-// visitWordSubsts extracts commands buried in command/process substitutions
-// within a word. Substitutions run in a subshell, so the enclosing redirect
-// context does not carry over.
-func visitWordSubsts(cmds []Command, w *syntax.Word) []Command {
-	syntax.Walk(w, func(node syntax.Node) bool {
+// visitSubsts extracts commands buried in command/process substitutions
+// anywhere under node. Substitutions run in a subshell, so the enclosing
+// redirect context does not carry over.
+func visitSubsts(cmds []Command, node syntax.Node) []Command {
+	if node == nil {
+		return cmds
+	}
+	if w, ok := node.(*syntax.Word); ok && w == nil {
+		return cmds
+	}
+	syntax.Walk(node, func(node syntax.Node) bool {
 		switch n := node.(type) {
 		case *syntax.CmdSubst:
 			cmds = visitStmts(cmds, n.Stmts, false)
