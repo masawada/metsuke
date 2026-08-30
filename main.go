@@ -26,6 +26,9 @@ type hookSpecificOutput struct {
 	PermissionDecisionReason string `json:"permissionDecisionReason"`
 }
 
+// version is the current release version, maintained by tagpr.
+var version = "0.0.0"
+
 func main() {
 	os.Exit(run(os.Stdin, os.Stdout, os.Stderr, os.Args[1:]))
 }
@@ -39,8 +42,13 @@ func run(stdin io.Reader, stdout, stderr io.Writer, args []string) int {
 	fs := flag.NewFlagSet("metsuke", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	configFlag := fs.String("config", "", "path to the rule config file (TOML)")
+	versionFlag := fs.Bool("version", false, "show version")
 	if err := fs.Parse(args); err != nil {
 		emit(stdout, decisionAsk, fmt.Sprintf("invalid arguments: %v", err))
+		return 0
+	}
+	if *versionFlag {
+		_, _ = fmt.Fprintf(stdout, "metsuke version %s\n", version)
 		return 0
 	}
 
