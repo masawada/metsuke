@@ -16,6 +16,8 @@ allow = [
   "git status",
   "git log",
   "git commit -m 'foo bar'",
+  "git commit -m ''",
+  "git show HEAD:path/to/file",
 ]
 `))
 	if err != nil {
@@ -32,6 +34,12 @@ allow = [
 	if want := []string{"git", "commit", "-m", "foo bar"}; !reflect.DeepEqual(cfg.allowRules[2], want) {
 		t.Errorf("quoted rule tokens = %v, want %v", cfg.allowRules[2], want)
 	}
+	if want := []string{"git", "commit", "-m", ""}; !reflect.DeepEqual(cfg.allowRules[3], want) {
+		t.Errorf("empty argument rule tokens = %v, want %v", cfg.allowRules[3], want)
+	}
+	if want := []string{"git", "show", "HEAD:path/to/file"}; !reflect.DeepEqual(cfg.allowRules[4], want) {
+		t.Errorf("slash argument rule tokens = %v, want %v", cfg.allowRules[4], want)
+	}
 }
 
 func TestParseConfigInvalidRules(t *testing.T) {
@@ -41,11 +49,22 @@ func TestParseConfigInvalidRules(t *testing.T) {
 	}{
 		{"pipe in rule", `deny = ["git push | cat"]`},
 		{"and chain in rule", `deny = ["git add . && git push"]`},
+		{"semicolon-separated commands in rule", `deny = ["git status; git push"]`},
+		{"newline-separated commands in rule", `deny = ["git status\ngit push"]`},
 		{"expansion in rule", `deny = ["git push $BRANCH"]`},
 		{"command substitution in rule", `deny = ["git push $(cat f)"]`},
 		{"redirect in rule", `allow = ["git status > out.txt"]`},
+		{"input redirect in rule", `allow = ["git status < file"]`},
+		{"fd duplication in rule", `allow = ["git status 2>&1"]`},
 		{"env prefix in rule", `deny = ["GIT_DIR=/x git push"]`},
+		{"subshell in rule", `deny = ["(git push)"]`},
+		{"block in rule", `deny = ["{ git push; }"]`},
+		{"time clause in rule", `deny = ["time git push"]`},
+		{"loop in rule", `deny = ["for x in a; do git push; done"]`},
+		{"negation in rule", `deny = ["! git push"]`},
+		{"background in rule", `deny = ["git push &"]`},
 		{"empty rule", `deny = [""]`},
+		{"empty quoted command name", `deny = ["''"]`},
 		{"path command name in rule", `deny = ["/usr/bin/git push"]`},
 		{"broken toml", `deny = [`},
 		{"unknown key", `denny = ["git push"]`},
