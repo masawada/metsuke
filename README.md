@@ -146,3 +146,7 @@ degrade to delegation — the normal permission flow still sees the full
 command text — but do not rely on a deny rule as your only defense.
 Keep critical denies in Claude Code's own `permissions.deny` as an
 additional layer.
+
+## License
+
+[MIT](LICENSE)
