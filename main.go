@@ -27,7 +27,7 @@ type hookSpecificOutput struct {
 }
 
 // version is the current release version, maintained by tagpr.
-var version = "0.0.0"
+var version = "0.0.1"
 
 func main() {
 	os.Exit(run(os.Stdin, os.Stdout, os.Stderr, os.Args[1:]))
