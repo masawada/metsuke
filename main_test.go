@@ -151,6 +151,16 @@ func TestRunInvalidStdinAsks(t *testing.T) {
 	}
 }
 
+func TestRunVersion(t *testing.T) {
+	var stdout, stderr strings.Builder
+	if code := run(strings.NewReader(""), &stdout, &stderr, []string{"--version"}); code != 0 {
+		t.Fatalf("run exited with %d, stderr: %s", code, stderr.String())
+	}
+	if got, want := stdout.String(), "metsuke version "+version+"\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+}
+
 func TestResolveConfigPath(t *testing.T) {
 	t.Run("explicit flag wins", func(t *testing.T) {
 		got, err := resolveConfigPath("/x/y.toml")
