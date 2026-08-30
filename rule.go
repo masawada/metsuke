@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // Config holds the deny/allow rules. Each rule is an argv token sequence
@@ -74,33 +75,46 @@ func parseConfig(data []byte) (*Config, error) {
 }
 
 // parseRule tokenizes a rule string with the same lexer as real commands.
-// A rule must be a single simple command made of literal words only, so
-// mistakes like `git push | cat` are rejected instead of silently never
-// matching.
+// A rule must be exactly one plain call made of literal words, checked
+// directly against the AST: compound constructs, redirects of any kind,
+// negation, backgrounding, and assignments are rejected so a rule never
+// silently loads as something broader (or narrower) than written.
 func parseRule(s string) ([]string, error) {
-	cmds, err := parseCommands(s)
+	parser := syntax.NewParser(syntax.Variant(syntax.LangBash))
+	file, err := parser.Parse(strings.NewReader(s), "")
 	if err != nil {
 		return nil, err
 	}
-	if len(cmds) != 1 {
+	if len(file.Stmts) != 1 {
 		return nil, fmt.Errorf("must be a single simple command")
 	}
-	cmd := cmds[0]
-	if len(cmd.Words) == 0 {
-		return nil, fmt.Errorf("must contain a command name")
+	stmt := file.Stmts[0]
+	if stmt.Negated || stmt.Background || stmt.Coprocess {
+		return nil, fmt.Errorf("must be a single simple command")
 	}
-	if cmd.OutputRedirect {
+	if len(stmt.Redirs) > 0 {
 		return nil, fmt.Errorf("must not contain a redirect")
 	}
-	if cmd.EnvPrefix {
+	call, ok := stmt.Cmd.(*syntax.CallExpr)
+	if !ok {
+		return nil, fmt.Errorf("must be a single simple command")
+	}
+	if len(call.Assigns) > 0 {
 		return nil, fmt.Errorf("must not contain an env assignment")
 	}
-	rule := make([]string, len(cmd.Words))
-	for i, w := range cmd.Words {
-		if !w.Literal {
+	if len(call.Args) == 0 {
+		return nil, fmt.Errorf("must contain a command name")
+	}
+	rule := make([]string, len(call.Args))
+	for i, w := range call.Args {
+		word := evalWord(w)
+		if !word.Literal {
 			return nil, fmt.Errorf("must consist of literal words only")
 		}
-		rule[i] = w.Text
+		rule[i] = word.Text
+	}
+	if rule[0] == "" {
+		return nil, fmt.Errorf("command name must not be empty")
 	}
 	if strings.Contains(rule[0], "/") {
 		return nil, fmt.Errorf("command name must be a bare name")
