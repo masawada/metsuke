@@ -75,7 +75,7 @@ func run(stdin io.Reader, stdout, stderr io.Writer, args []string) int {
 	if err != nil {
 		// Unparseable command lines are delegated; the classifier still
 		// sees the full command text.
-		fmt.Fprintf(stderr, "metsuke: parse error: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "metsuke: parse error: %v\n", err)
 		return 0
 	}
 	dec, reason := cfg.judge(cmds)
@@ -94,7 +94,7 @@ func emit(w io.Writer, dec decision, reason string) {
 			PermissionDecisionReason: "metsuke: " + reason,
 		},
 	}
-	json.NewEncoder(w).Encode(out)
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 // resolveConfigPath returns the config file location: the --config flag if
