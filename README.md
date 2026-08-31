@@ -26,6 +26,12 @@ Some details of the matching:
 ## Install
 
 ```console
+$ brew install masawada/tap/metsuke
+```
+
+Or with `go install`:
+
+```console
 $ go install github.com/masawada/metsuke@latest
 ```
 
