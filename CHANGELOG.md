@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.0.3](https://github.com/masawada/metsuke/compare/v0.0.2...v0.0.3) - 2026-09-26
+
+- Bump Songmu/tagpr from 1.20.1 to 1.20.3 by @dependabot[bot] in https://github.com/masawada/metsuke/pull/15
+- Bump mvdan.cc/sh/v3 from 3.14.0 to 3.14.1 by @dependabot[bot] in https://github.com/masawada/metsuke/pull/17
+- Bump Songmu/tagpr from 1.20.3 to 1.21.0 by @dependabot[bot] in https://github.com/masawada/metsuke/pull/18
+
 ## [v0.0.2](https://github.com/masawada/metsuke/compare/v0.0.1...v0.0.2) - 2026-09-02
 
 - Recommend Homebrew install in README by @masawada in https://github.com/masawada/metsuke/pull/12
